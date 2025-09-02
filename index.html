@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>3D Car Scene - Race to the Finish</title>
+  <style>
+    :root{
+      --glass: rgba(255,255,255,0.15);
+      --glass-strong: rgba(255,255,255,0.3);
+      --ink: rgba(0,0,0,0.75);
+      --accent: #21d4fd;
+      --accent2:#b721ff;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      overflow:hidden;
+      background: linear-gradient(180deg,#a0d7e6 0%, #8fcde0 100%);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, sans-serif;
+      overscroll-behavior: none;
+      touch-action: none;
+    }
+    canvas{ display:block }
+
+    /* Helper Class */
+    .hidden{ display: none !important; }
+
+    /* Screen containers */
+    .screen{
+        position: fixed; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        background: rgba(0,0,0,0.5); backdrop-filter: blur(10px);
+        z-index: 99;
+        opacity: 1; transition: opacity .5s ease;
+        padding: 10px;
+    }
+
+    .card{
+        width: 100%;
+        max-width: 500px;
+        padding: 24px 28px; border-radius: 20px;
+        backdrop-filter: blur(12px);
+        background: linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,.4));
+        border:1px solid rgba(255,255,255,.25);
+        color:#fff; text-align:center;
+        box-shadow: 0 30px 60px rgba(0,0,0,.35);
+    }
+    .card h2 { margin: 0 0 20px; font-size: 1.8rem; }
+
+
+    /* Loading */
+    #loading-screen{
+      position: fixed; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      background: #000; color:#fff; font-size: clamp(18px,4vw,28px);
+      z-index: 100; opacity:1; transition: opacity .5s ease;
+    }
+    #loading-screen.hidden-fade{ opacity: 0; pointer-events: none; }
+
+    /* Start Screen */
+    #start-screen .card {
+        background: transparent;
+        backdrop-filter: none;
+        box-shadow: none;
+        border: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .start-button{
+        background: var(--glass);
+        border: 2px solid var(--glass-strong);
+        color: #fff;
+        padding: 15px 30px;
+        margin: 10px 0;
+        border-radius: 50px;
+        cursor: pointer;
+        font-size: clamp(1rem, 4vw, 1.2rem);
+        font-weight: 600;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+        transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
+        width: 100%;
+        max-width: 320px;
+        text-align: center;
+    }
+    .start-button:hover{
+        background: var(--glass-strong);
+        transform: scale(1.05);
+        box-shadow: 0 8px 24px rgba(0,0,0,.25);
+    }
+
+    /* Auth Form */
+    #auth-screen .card { max-width: 400px; }
+    #auth-form{ display: flex; flex-direction: column; gap: 15px; }
+    .form-input{
+        width: 100%;
+        padding: 12px 16px;
+        border-radius: 10px;
+        border: 1px solid var(--glass-strong);
+        background: var(--glass);
+        color: #fff;
+        font-size: 1rem;
+    }
+    .form-input::placeholder{ color: rgba(255,255,255,0.7); }
+    .form-button{
+        padding: 12px; border-radius: 10px; border: none;
+        background: linear-gradient(90deg,var(--accent),var(--accent2));
+        color: #fff; font-weight: 700; font-size: 1rem;
+        cursor: pointer; transition: transform .2s ease;
+    }
+    .form-button:active{ transform: scale(0.96); }
+    .button-group { display: flex; gap: 10px; }
+    .button-group .form-button { flex: 1; }
+    .back-button{ background: #555; }
+    #form-message { margin-top: 15px; min-height: 1.2em; font-weight: 500;}
+    .success-message { color: #4ade80; }
+    .error-message { color: #f87171; }
+
+    /* User List Screen */
+    #user-list-screen .card { max-width: 500px; max-height: 80vh; }
+    #user-list-container {
+        display: flex; flex-direction: column; gap: 10px;
+        max-height: 50vh; overflow-y: auto;
+        padding-right: 10px;
+    }
+    .user-list-item {
+        background: var(--glass);
+        border: 1px solid var(--glass-strong);
+        padding: 12px 18px;
+        border-radius: 10px;
+        cursor: pointer;
+        text-align: left;
+        font-family: monospace;
+        font-size: 1.1rem;
+        transition: background .2s ease;
+    }
+    .user-list-item:hover { background: var(--glass-strong); }
+    #logout-button {
+        background: #c0392b; margin-top: 20px;
+    }
+
+    /* Challenge & Waiting Screens */
+    .challenge-card { max-width: 450px; }
+    .challenge-card p { font-size: 1.1rem; margin: 0 0 20px; }
+    .challenge-card .challenger-id {
+        font-family: monospace;
+        font-size: 1.2rem;
+        font-weight: bold;
+        background: rgba(0,0,0,0.3);
+        padding: 4px 8px;
+        border-radius: 5px;
+        word-break: break-all;
+    }
+
+    /* HUD */
+    #hud{
+        position: fixed; top: 10px; left: 50%;
+        transform: translateX(-50%); display: flex;
+        flex-direction: column; align-items: center;
+        gap: 12px; z-index: 60; width: 90%; max-width: 500px;
+        visibility: hidden;
+    }
+    #hud.visible { visibility: visible; }
+    #ui-container{
+      display:flex; flex-direction:column; align-items:center; gap: 8px;
+      z-index:60; color:#fff; text-shadow: 0 2px 8px rgba(0,0,0,.6);
+    }
+    .pill{
+      backdrop-filter: blur(10px); background: var(--glass);
+      border:1.5px solid var(--glass-strong); border-radius: 999px;
+      padding:8px 14px; display:flex; align-items:center; gap:10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.15), inset 0 0 0 1px rgba(255,255,255,.2);
+      font-weight:600;
+    }
+    .tag{ font-size:.85rem; opacity:.85 }
+    .mode{
+      background: linear-gradient(90deg,var(--accent),var(--accent2));
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      font-weight:800; letter-spacing:.6px;
+    }
+    #score-board{ font-size: 1rem; font-weight: 700; padding: 6px 14px; }
+    #progress-container { width: 100%; }
+    .progress-bar {
+        width: 100%; height: 8px; background: var(--glass);
+        border-radius: 999px; border: 1px solid var(--glass-strong);
+        position: relative; box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    }
+    .marker {
+        position: absolute; top: 50%; transform: translate(-50%, -50%);
+        width: 24px; height: 24px; border-radius: 50%;
+        border: 2px solid rgba(255,255,255,.8); box-shadow: 0 2px 8px rgba(0,0,0,.5);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 12px; font-weight: bold; color: #fff; text-shadow: none;
+        transition: left .1s linear;
+    }
+    .marker.player { background-color: #ff4444; z-index: 2; }
+    .marker.opponent { background-color: #3366ff; z-index: 1; }
+    .progress-labels {
+        display: flex; justify-content: space-between; padding: 0 4px;
+        margin-top: 2px; color: #fff; font-size: 0.7rem; font-weight: 600;
+        text-shadow: 0 1px 4px rgba(0,0,0,.6);
+    }
+
+    #countdown{
+        position:fixed; inset:0; display:none; place-items:center;
+        font-size: clamp(120px, 30vw, 250px); font-weight: 900;
+        color: #fff; text-shadow: 0 20px 50px rgba(0,0,0,.5); z-index: 102;
+    }
+    .pop-in { animation: pop .4s ease; }
+
+    #game-over{ position: fixed; inset:0; z-index:101; }
+    #game-over .card{ animation: pop .35s ease; }
+    #game-over h1{ margin:0 0 8px; font-size: clamp(28px,6vw,48px); letter-spacing:1px; text-shadow: 0 6px 20px rgba(0,0,0,.6); }
+    #game-over p{ margin:0; opacity:.9 }
+    @keyframes pop{ from{ transform: scale(.9); opacity:.3 } to{ transform: scale(1); opacity:1 } }
+
+    /* Mobile Controls */
+    .controls{
+      position: fixed; inset: auto 0 16px 0; display:flex;
+      justify-content:space-between; align-items:center;
+      padding: 0 16px; z-index:70; pointer-events: none; visibility: hidden;
+    }
+    .controls.visible { visibility: visible; }
+    .control-button{
+      pointer-events: auto; width:80px; height:80px; border-radius: 50%;
+      background: var(--glass); border: 2px solid rgba(255,255,255,.35);
+      display:flex; align-items:center; justify-content:center; font-size: 2rem;
+      color: var(--ink); cursor:pointer; user-select:none; -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 12px 28px rgba(0,0,0,.25), inset 0 0 0 1px rgba(255,255,255,.18);
+      transition: transform .08s ease, background .2s ease, box-shadow .2s ease;
+    }
+    .control-button:active{
+      transform: scale(.94); background: var(--glass-strong);
+      box-shadow: 0 8px 16px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.28);
+      animation: pulse .3s ease;
+    }
+    @keyframes pulse{
+      0%{ box-shadow: 0 0 0 0 rgba(33,212,253,.6) }
+      100%{ box-shadow: 0 0 0 16px rgba(33,212,253,0) }
+    }
+    @media (max-width:480px){ .control-button{ width:68px; height:68px; font-size:1.6rem } }
+  </style>
+</head>
+<body>
+  <div id="loading-screen">Loading…</div>
+  <div id="container"></div>
+
+  <!-- Start Screen -->
+  <div id="start-screen" class="screen hidden">
+      <div class="card">
+        <div class="start-button" id="play-computer">Play with Computer</div>
+        <div class="start-button" id="play-human">Play with Human</div>
+      </div>
+  </div>
+
+  <!-- Auth Screen -->
+  <div id="auth-screen" class="screen hidden">
+    <div class="card">
+      <h2>Join Multiplayer</h2>
+      <form id="auth-form">
+        <input type="email" id="email" class="form-input" placeholder="Email" required>
+        <input type="password" id="password" class="form-input" placeholder="Password (min. 6 chars)" required>
+        <div class="button-group">
+            <button type="button" id="login-button" class="form-button">Login</button>
+            <button type="button" id="register-button" class="form-button">Register</button>
+        </div>
+        <button type="button" id="back-button" class="form-button back-button">Back</button>
+      </form>
+      <p id="form-message"></p>
+    </div>
+  </div>
+
+  <!-- User List Screen -->
+  <div id="user-list-screen" class="screen hidden">
+    <div class="card">
+      <h2>Choose an Opponent</h2>
+      <div id="user-list-container"><p>Loading players...</p></div>
+      <button id="logout-button" class="form-button">Logout</button>
+    </div>
+  </div>
+
+  <!-- Incoming Challenge Screen -->
+  <div id="challenge-notification-screen" class="screen hidden">
+      <div class="card challenge-card">
+          <h2>Incoming Challenge!</h2>
+          <p>You have been challenged by: <br><span id="challenger-id" class="challenger-id"></span></p>
+          <div class="button-group">
+              <button id="accept-challenge-button" class="form-button">Accept</button>
+              <button id="reject-challenge-button" class="form-button back-button">Reject</button>
+          </div>
+      </div>
+  </div>
+
+  <!-- Waiting for Response Screen -->
+  <div id="waiting-for-response-screen" class="screen hidden">
+      <div class="card challenge-card">
+          <h2>Challenge Sent</h2>
+          <p>Waiting for <span id="opponent-id" class="challenger-id"></span> to respond...</p>
+          <button id="cancel-challenge-button" class="form-button back-button">Cancel</button>
+      </div>
+  </div>
+  
+  <!-- Starting Race Screen -->
+  <div id="starting-race-screen" class="screen hidden">
+      <div class="card">
+          <h2 id="starting-race-title">Challenge Accepted!</h2>
+          <p>The race will begin shortly...</p>
+      </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="ui-container">
+        <div class="pill"><span class="tag">Mode</span> <span id="mode-display" class="mode">Championship</span></div>
+        <div id="score-board" class="pill"></div>
+    </div>
+    <div id="progress-container">
+      <div class="progress-bar">
+        <div id="player-marker" class="marker player">P</div>
+        <div id="opponent-marker" class="marker opponent">E</div>
+      </div>
+      <div class="progress-labels">
+        <span>START</span>
+        <span>FINISH</span>
+      </div>
+    </div>
+  </div>
+  
+  <div id="countdown"></div>
+
+
+  <!-- Game Over -->
+  <div id="game-over" class="screen hidden">
+    <div class="card">
+      <h1 id="game-over-title">RACE FINISHED</h1>
+      <p><strong>Winner:</strong> <span id="winner">—</span></p>
+      <p><strong>Final Score:</strong> <span id="final-score">—</span></p>
+      <p style="margin-top:10px; font-size:.95rem; opacity:.85">Tap anywhere to restart</p>
+    </div>
+  </div>
+
+  <!-- Mobile Control Buttons -->
+  <div class="controls">
+    <div id="left-button"  class="control-button" aria-label="Move Left">◀</div>
+    <div id="right-button" class="control-button" aria-label="Move Right">▶</div>
+  </div>
+
+  <!-- Import Maps -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/",
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
+        "firebase/database": "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+    import { initializeApp } from 'firebase/app';
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
+    import { getDatabase, ref, set, onValue, remove, onChildAdded, off, onDisconnect, update } from 'firebase/database';
+
+
+    // --- FIREBASE SETUP ---
+    // TODO: Replace with your own Firebase project configuration
+    const firebaseConfig = {
+  apiKey: "AIzaSyDl9ohUbHzue0NeOfhOajVKaYCd3UVeUyM",
+  authDomain: "car-game-8d694.firebaseapp.com",
+  databaseURL: "https://car-game-8d694-default-rtdb.firebaseio.com",
+  projectId: "car-game-8d694",
+  storageBucket: "car-game-8d694.firebasestorage.app",
+  messagingSenderId: "408449342872",
+  appId: "1:408449342872:web:4055df187077639d395fed"
+};
+
+    const firebaseApp = initializeApp(firebaseConfig);
+    const auth = getAuth(firebaseApp);
+    const db = getDatabase(firebaseApp);
+    // --- END FIREBASE SETUP ---
+
+    let gameMode = 'computer';
+    let myCar, opponentCar;
+    let currentOpponent = null;
+    let raceIdRef = null;
+    let opponentPosListener = null;
+    let raceStateListener = null;
+    let opponentTargetPos = new THREE.Vector3();
+    let lastDbWriteTime = 0;
+    const dbWriteInterval = 50;
+
+    let amITheChallenger = false; // ADDED: To track player role
+
+    // Multiplayer listener state
+    let raceCreationListener = null;
+    let raceCreationRef = null;
+
+    let scene, camera, renderer;
+    let playerCar, computerCar;
+    let ambientLight, directionalLight, road;
+    let buildings = [], streetLights = [];
+    
+    const roadWidth = 10, raceDistance = 800;
+    const preRaceLength = 200, postRaceLength = 400;
+    const worldLength = raceDistance + postRaceLength, totalWorldLength = preRaceLength + worldLength;
+    const buildingSpacing = 15, lightSpacing = 30;
+    const numBuildings = Math.floor(totalWorldLength / buildingSpacing), numLights = Math.floor(totalWorldLength / lightSpacing);
+    
+    const baseCarSpeed = 0.55, playerSpeed = baseCarSpeed, computerSpeed = baseCarSpeed;
+    let aiDesiredX = 0;
+    const aiSteerSpeed = 0.08, aiLookAheadDistance = 30, kerbHeight = 0.2, kerbWidth = 0.3;
+    const waterSpeedModifier = 0.4;
+    let waterPuddles = [];
+
+    let isColliding = false, collisionTimeout = 0;
+    const collisionSpeedModifier = 0.25, collisionPenaltyDuration = 1000;
+    let cameraShake = { active: false, intensity: 0, startTime: 0, duration: 0 };
+
+    let moveLeft=false, moveRight=false;
+    const carMoveSpeed = 0.15;
+    let carBaseY = 0;
+    
+    let gameState = 'loading';
+    const totalRounds = 1;
+    let currentRound = 1;
+    
+    // --- PARTICLE SYSTEM FOR WATER SPLASH ---
+    let particleSystem, particlePool = [], activeParticles = 0;
+    const maxParticles = 200;
+
+    // UI refs
+    const loadingScreen = document.getElementById('loading-screen');
+    const allScreens = document.querySelectorAll('.screen');
+    const startScreen = document.getElementById('start-screen');
+    const authScreen = document.getElementById('auth-screen');
+    const userListScreen = document.getElementById('user-list-screen');
+    const userListContainer = document.getElementById('user-list-container');
+    const challengeScreen = document.getElementById('challenge-notification-screen');
+    const waitingScreen = document.getElementById('waiting-for-response-screen');
+    const startingRaceScreen = document.getElementById('starting-race-screen');
+    const startingRaceTitle = document.getElementById('starting-race-title');
+    const formMessageEl = document.getElementById('form-message');
+    const hud = document.getElementById('hud');
+    const controls = document.querySelector('.controls');
+    const gameOverEl = document.getElementById('game-over');
+    const gameOverTitleEl = document.getElementById('game-over-title');
+    const winnerEl = document.getElementById('winner');
+    const finalScoreEl = document.getElementById('final-score');
+    const countdownEl = document.getElementById('countdown');
+    const scoreBoardEl = document.getElementById('score-board');
+    const modeDisplay = document.getElementById('mode-display');
+    let playerMarker, opponentMarker;
+
+    const loadingManager = new THREE.LoadingManager();
+    loadingManager.onLoad = () => { loadingScreen.classList.add('hidden-fade'); setTimeout(() => { loadingScreen.classList.add('hidden'); }, 500); };
+    loadingManager.onError = (url) => { console.error(`Error loading ${url}`); loadingScreen.textContent = `Error. Check console.`; };
+    loadingManager.onProgress = (url, i, t) => { loadingScreen.textContent = `Loading ${Math.round((i/t)*100)}%…`; };
+
+    // --- MAIN INITIALIZATION ---
+    initThreeJS();
+    setupControls();
+    initUI();
+    handleAuthState();
+    animate();
+    // -------------------------
+
+    function showScreen(screenToShow) { allScreens.forEach(s => s.classList.add('hidden')); if (screenToShow) screenToShow.classList.remove('hidden'); }
+    function getShortUID(uid) { return uid ? uid.slice(-4).toUpperCase() : '----'; }
+
+    function initUI(){
+      playerMarker = document.getElementById('player-marker');
+      opponentMarker = document.getElementById('opponent-marker');
+
+      document.getElementById('play-computer').addEventListener('click', () => {
+          gameMode = 'computer';
+          modeDisplay.textContent = 'Vs. Computer';
+          opponentMarker.textContent = 'E';
+          generateWaterPuddles(true);
+          showScreen(null);
+          hud.classList.add('visible');
+          controls.classList.add('visible');
+          startRound();
+      });
+      document.getElementById('play-human').addEventListener('click', () => showScreen(authScreen));
+      document.getElementById('back-button').addEventListener('click', () => showScreen(startScreen));
+      document.getElementById('logout-button').addEventListener('click', () => signOut(auth));
+
+      const emailEl = document.getElementById('email'), passwordEl = document.getElementById('password');
+      document.getElementById('login-button').addEventListener('click', () => handleAuth(signInWithEmailAndPassword, emailEl.value, passwordEl.value));
+      document.getElementById('register-button').addEventListener('click', () => handleAuth(createUserWithEmailAndPassword, emailEl.value, passwordEl.value, true));
+      
+      document.getElementById('accept-challenge-button').addEventListener('click', acceptChallenge);
+      document.getElementById('reject-challenge-button').addEventListener('click', rejectChallenge);
+      document.getElementById('cancel-challenge-button').addEventListener('click', cancelChallenge);
+
+      gameOverEl.addEventListener('pointerdown', () => { if(gameState === 'gameOver') restart(); });
+    }
+
+    async function handleAuth(authFunction, email, password, isRegistering = false) {
+        formMessageEl.textContent = ''; formMessageEl.className = '';
+        try {
+            const userCredential = await authFunction(auth, email, password);
+            if (isRegistering) await writeUserData(userCredential.user);
+        } catch (error) {
+            formMessageEl.textContent = error.message;
+            formMessageEl.classList.add('error-message');
+        }
+    }
+
+    function writeUserData(user) { return set(ref(db, 'users/' + user.uid), { uid: user.uid, email: user.email }); }
+
+    let challengeInboxRef, challengeInboxListener;
+    function handleAuthState() {
+        onAuthStateChanged(auth, user => {
+            if (challengeInboxRef && challengeInboxListener) off(challengeInboxRef, 'child_added', challengeInboxListener);
+            if (user) {
+                showScreen(userListScreen);
+                fetchAndDisplayUsers(user.uid);
+                challengeInboxRef = ref(db, 'challenges/' + user.uid);
+                challengeInboxListener = onChildAdded(challengeInboxRef, (snapshot) => {
+                    const challenge = snapshot.val();
+                    if (challenge) {
+                        currentOpponent = { uid: snapshot.key, challengerId: snapshot.key };
+                        document.getElementById('challenger-id').textContent = `Player #${getShortUID(currentOpponent.uid)}`;
+                        showScreen(challengeScreen);
+                    }
+                });
+            } else {
+                showScreen(startScreen);
+            }
+        });
+    }
+
+    function fetchAndDisplayUsers(currentUserId) {
+        const usersRef = ref(db, 'users/');
+        onValue(usersRef, (snapshot) => {
+            userListContainer.innerHTML = '';
+            const users = snapshot.val();
+            if (!users || Object.keys(users).length <= 1) { userListContainer.innerHTML = '<p>No other players online.</p>'; return; }
+            for (const uid in users) {
+                if (uid !== currentUserId) {
+                    const user = users[uid];
+                    const userElement = document.createElement('div');
+                    userElement.className = 'user-list-item';
+                    userElement.textContent = `Player #${getShortUID(user.uid)}`;
+                    userElement.onclick = () => sendChallenge(user);
+                    userListContainer.appendChild(userElement);
+                }
+            }
+        }, { onlyOnce: true });
+    }
+    
+    function initializeAndStartRace(raceData, myId, isChallenger) {
+        const opponentId = isChallenger ? raceData.acceptorId : raceData.challengerId;
+        
+        amITheChallenger = isChallenger;
+
+        gameMode = 'human';
+        modeDisplay.textContent = 'Multiplayer';
+        opponentMarker.textContent = 'O';
+
+        if (isChallenger) {
+            myCar = playerCar;
+            opponentCar = computerCar;
+        } else {
+            myCar = computerCar;
+            opponentCar = playerCar;
+        }
+        
+        generateWaterPuddlesFromData(raceData.waterPuddles);
+        
+        raceIdRef = ref(db, `races/${raceData.raceId}`);
+
+        const opponentRef = ref(db, `races/${raceData.raceId}/players/${opponentId}`);
+        opponentPosListener = onValue(opponentRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) opponentTargetPos.set(data.x, opponentCar.position.y, data.z);
+        });
+
+        raceStateListener = onValue(raceIdRef, (snapshot) => {
+            if (!snapshot.exists()) return;
+            const currentRaceData = snapshot.val();
+            if (currentRaceData.winner && gameState === 'racing') {
+                endGame(currentRaceData.winner);
+            }
+        });
+        
+        onDisconnect(raceIdRef).remove();
+
+        showScreen(null);
+        hud.classList.add('visible');
+        controls.classList.add('visible');
+        startRound();
+    }
+
+    async function sendChallenge(opponent) {
+        const currentUser = auth.currentUser;
+        if (!currentUser || !opponent) return;
+        currentOpponent = opponent;
+        const raceId = [currentUser.uid, opponent.uid].sort().join('_');
+
+        if (raceCreationListener && raceCreationRef) {
+            off(raceCreationRef, 'value', raceCreationListener);
+        }
+
+        raceCreationRef = ref(db, `races/${raceId}`);
+        
+        raceCreationListener = onValue(raceCreationRef, (snapshot) => {
+            if (snapshot.exists()) {
+                off(raceCreationRef, 'value', raceCreationListener);
+                raceCreationListener = null;
+                raceCreationRef = null;
+
+                const raceData = snapshot.val();
+                startingRaceTitle.textContent = 'Challenge Accepted!';
+                showScreen(startingRaceScreen);
+                setTimeout(() => initializeAndStartRace(raceData, currentUser.uid, true), 1000);
+            }
+        });
+
+        const challengeRef = ref(db, `challenges/${opponent.uid}/${currentUser.uid}`);
+        await set(challengeRef, { challengerId: currentUser.uid });
+
+        document.getElementById('opponent-id').textContent = `Player #${getShortUID(opponent.uid)}`;
+        showScreen(waitingScreen);
+    }
+
+    async function acceptChallenge() {
+        const currentUser = auth.currentUser;
+        if (!currentUser || !currentOpponent) return;
+        
+        const raceId = [currentUser.uid, currentOpponent.challengerId].sort().join('_');
+        
+        const waterPuddlesData = generateWaterPuddles(false, true);
+        
+        const raceData = {
+            raceId: raceId,
+            challengerId: currentOpponent.challengerId,
+            acceptorId: currentUser.uid,
+            players: {
+                [currentUser.uid]: { x: 0, z: 0, ready: true },
+                [currentOpponent.challengerId]: { x: 0, z: 0, ready: false }
+            },
+            waterPuddles: waterPuddlesData
+        };
+
+        await set(ref(db, `races/${raceId}`), raceData);
+        await remove(ref(db, `challenges/${currentUser.uid}/${currentOpponent.challengerId}`));
+        
+        startingRaceTitle.textContent = 'Joining Race...';
+        showScreen(startingRaceScreen);
+        setTimeout(() => initializeAndStartRace(raceData, currentUser.uid, false), 1000);
+    }
+
+    async function rejectChallenge() { const u = auth.currentUser; if(!u||!currentOpponent)return; await remove(ref(db, `challenges/${u.uid}/${currentOpponent.challengerId}`)); showScreen(userListScreen); }
+    
+    async function cancelChallenge() {
+        const u = auth.currentUser;
+        if (!u || !currentOpponent) return;
+
+        if (raceCreationListener && raceCreationRef) {
+            off(raceCreationRef, 'value', raceCreationListener);
+            raceCreationListener = null;
+            raceCreationRef = null;
+        }
+
+        await remove(ref(db, `challenges/${currentOpponent.uid}/${u.uid}`));
+        showScreen(userListScreen);
+    }
+
+    function initThreeJS(){ scene = new THREE.Scene(); scene.background = new THREE.Color(0xa0d7e6); scene.fog = new THREE.Fog(0xa0d7e6, 200, 1000); camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, .1, 2000); renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0; document.getElementById('container').appendChild(renderer.domElement); const worldCenterZ = (worldLength - preRaceLength) / 2; ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight); directionalLight = new THREE.DirectionalLight(0xffffff, 1.5); directionalLight.position.set(50, 100, worldCenterZ); directionalLight.castShadow = true; directionalLight.shadow.mapSize.set(2048,2048); Object.assign(directionalLight.shadow.camera, { near:.5, far: totalWorldLength + 200, left:-totalWorldLength/2, right:totalWorldLength/2, top: totalWorldLength/2, bottom:-totalWorldLength/2 }); scene.add(directionalLight); const groundGeo = new THREE.PlaneGeometry(totalWorldLength*1.5, totalWorldLength); const groundMat = new THREE.MeshStandardMaterial({color:0x55aa55, side:THREE.DoubleSide}); const ground = new THREE.Mesh(groundGeo, groundMat); ground.rotation.x = -Math.PI/2; ground.position.y = -0.05; ground.position.z = worldCenterZ; ground.receiveShadow = true; scene.add(ground); const roadGeo = new THREE.PlaneGeometry(roadWidth, totalWorldLength); const roadMat = new THREE.MeshStandardMaterial({color:0x555555, side:THREE.DoubleSide}); road = new THREE.Mesh(roadGeo, roadMat); road.rotation.x = -Math.PI/2; road.position.y = 0; road.position.z = worldCenterZ; road.receiveShadow = true; scene.add(road); const lineLength=4, lineGap=4; const numLines = Math.floor(totalWorldLength / (lineLength+lineGap)); const lineGeo = new THREE.PlaneGeometry(0.3, lineLength); const lineMat = new THREE.MeshStandardMaterial({color:0xffffff, side:THREE.DoubleSide}); for(let i=0;i<numLines;i++){ const line = new THREE.Mesh(lineGeo, lineMat); line.rotation.x = -Math.PI/2; line.position.y = 0.005; line.position.z = -preRaceLength + (lineLength/2) + i*(lineLength+lineGap); line.receiveShadow = true; scene.add(line); } const finishLineGeo = new THREE.PlaneGeometry(roadWidth, 5); const finishCanvas = document.createElement('canvas'); finishCanvas.width = 64; finishCanvas.height = 64; const ctx = finishCanvas.getContext('2d'); ctx.fillStyle = '#000'; ctx.fillRect(0,0,64,64); ctx.fillStyle = '#fff'; for (let i = 0; i < 8; i++) { for (let j = 0; j < 8; j++) { if ((i + j) % 2 === 0) { ctx.fillRect(i * 8, j * 8, 8, 8); } } } const finishTexture = new THREE.CanvasTexture(finishCanvas); finishTexture.wrapS = THREE.RepeatWrapping; finishTexture.wrapT = THREE.RepeatWrapping; finishTexture.repeat.set(10, 1); const finishLineMat = new THREE.MeshStandardMaterial({ map: finishTexture, side: THREE.DoubleSide }); const finishLine = new THREE.Mesh(finishLineGeo, finishLineMat); finishLine.position.set(0, 0.01, raceDistance); finishLine.rotation.x = -Math.PI/2; scene.add(finishLine); const kerbTexture = (() => { const c = document.createElement('canvas'); const ctx = c.getContext('2d'); c.width=64; c.height=16; const stripe=8; const colors=['#ff0000','#ffffff']; for(let i=0;i<c.width/stripe;i++){ ctx.fillStyle = colors[i%2]; ctx.fillRect(i*stripe,0,stripe,c.height); } return new THREE.CanvasTexture(c); })(); kerbTexture.wrapS = THREE.RepeatWrapping; kerbTexture.repeat.set(totalWorldLength/4,1); const kerbGeo = new THREE.BoxGeometry(kerbWidth, kerbHeight, totalWorldLength); const kerbMat = new THREE.MeshStandardMaterial({map:kerbTexture}); const kerbLeft = new THREE.Mesh(kerbGeo, kerbMat); kerbLeft.position.set(-(roadWidth/2)-(kerbWidth/2), kerbHeight/2, worldCenterZ); kerbLeft.castShadow=kerbLeft.receiveShadow=true; scene.add(kerbLeft); const kerbRight = new THREE.Mesh(kerbGeo, kerbMat); kerbRight.position.set( (roadWidth/2)+(kerbWidth/2), kerbHeight/2, worldCenterZ); kerbRight.castShadow=kerbRight.receiveShadow=true; scene.add(kerbRight); for(let i=0;i<numBuildings;i++){ const bL = createBuilding(), bR = createBuilding(); const zPos = -preRaceLength + (buildingSpacing/2)+i*buildingSpacing; const xOffsetL = roadWidth/2 + kerbWidth + 1 + Math.random()*5 + bL.geometry.parameters.width/2; const xOffsetR = roadWidth/2 + kerbWidth + 1 + Math.random()*5 + bR.geometry.parameters.width/2; bL.position.set(-xOffsetL, bL.position.y, zPos); bR.position.set( xOffsetR, bR.position.y, zPos); buildings.push(bL,bR); scene.add(bL); scene.add(bR); } for(let i=0;i<numLights;i++){ const L = createStreetLight(), R = createStreetLight(); const zPos = -preRaceLength + (lightSpacing/2)+i*lightSpacing; const xPos = roadWidth/2+kerbWidth+.8; L.position.set(-xPos,0,zPos); L.rotation.y = Math.PI/2; L.children[1].position.x = -L.userData.armLength/2; L.children[2].position.x = -L.userData.armLength; R.position.set( xPos,0,zPos); R.rotation.y =-Math.PI/2; R.children[1].position.x = -R.userData.armLength/2; R.children[2].position.x = -R.userData.armLength; streetLights.push(L,R); scene.add(L); scene.add(R); } initParticleSystem(); const loader = new GLTFLoader(loadingManager); const draco = new DRACOLoader(loadingManager); draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/'); loader.setDRACOLoader(draco); loader.load('https://threejs.org/examples/models/gltf/ferrari.glb', (gltf)=>{ playerCar = gltf.scene; playerCar.scale.set(0.8,0.8,0.8); const box = new THREE.Box3().setFromObject(playerCar); carBaseY = -box.min.y + 0.01; playerCar.traverse(n=>{ if(n.isMesh){ n.castShadow=n.receiveShadow=true; } }); scene.add(playerCar); playerCar.rotation.y = Math.PI; camera.position.set(0, carBaseY+4, -8); camera.lookAt(playerCar.position.x, carBaseY+1, playerCar.position.z+5); }); loader.load('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/CesiumMilkTruck/glTF-Binary/CesiumMilkTruck.glb', (gltf)=>{ computerCar = gltf.scene; computerCar.scale.set(0.9,0.9,0.9); computerCar.traverse(n=>{ if(n.isMesh){ n.castShadow=n.receiveShadow=true; } }); scene.add(computerCar); }); addEventListener('resize', onWindowResize, false); }
+    function setupControls(){ const handleKeyDown = (e) => { if (gameState !== 'racing') return; const k = e.key.toLowerCase(); if (k === 'arrowleft' || k === 'a') moveLeft = true; if (k === 'arrowright' || k === 'd') moveRight = true; }; const handleKeyUp = (e) => { if (!e || !e.key) return; const k = e.key.toLowerCase(); if (k === 'arrowleft' || k === 'a') moveLeft = false; if (k === 'arrowright' || k === 'd') moveRight = false; }; addEventListener('keydown', handleKeyDown); addEventListener('keyup', handleKeyUp); const leftBtn = document.getElementById('left-button'); const rightBtn = document.getElementById('right-button'); const press = (setter) => (ev) => { if(gameState === 'racing'){ ev.preventDefault(); setter(true); } }; const release = (setter) => (ev) => { ev.preventDefault(); setter(false); }; leftBtn.addEventListener('touchstart', press(v=>moveLeft=v), {passive:false}); leftBtn.addEventListener('touchend', release(v=>moveLeft=v)); leftBtn.addEventListener('touchcancel',release(v=>moveLeft=v)); rightBtn.addEventListener('touchstart', press(v=>moveRight=v), {passive:false}); rightBtn.addEventListener('touchend', release(v=>moveRight=v)); rightBtn.addEventListener('touchcancel',release(v=>moveRight=v)); }
+    function onWindowResize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }
+    function triggerCameraShake(intensity, duration) { cameraShake.active = true; cameraShake.intensity = intensity; cameraShake.duration = duration; cameraShake.startTime = performance.now(); }
+    function getMaxBoundsFor(obj){ let maxBounds = roadWidth/2 - kerbWidth - 0.1; if(!obj) return maxBounds; try{ const box = new THREE.Box3().setFromObject(obj); const half = (box.max.x - box.min.x)/2; maxBounds = roadWidth/2 - kerbWidth - half - 0.1; }catch(e){} return Math.max(1.2, maxBounds); }
+    function isPositionInWater(x, z) { for (const puddle of waterPuddles) { if (x >= puddle.xMin && x <= puddle.xMax && z >= puddle.zMin && z <= puddle.zMax) { return true; } } return false; }
+    function updateScoreBoard(){ scoreBoardEl.innerHTML = gameMode === 'human' ? `Race Progress` : `Round: ${currentRound}/${totalRounds}`; }
+    
+    function resetCarPositions() {
+        if (!playerCar || !computerCar) return;
+
+        if (gameMode === 'human' && myCar && opponentCar) {
+            if (amITheChallenger) {
+                myCar.position.set(-roadWidth / 4, carBaseY, 0);
+                opponentCar.position.set(roadWidth / 4, carBaseY, 0);
+            } else {
+                myCar.position.set(roadWidth / 4, carBaseY, 0);
+                opponentCar.position.set(-roadWidth / 4, carBaseY, 0);
+            }
+        } else {
+            playerCar.position.set(-roadWidth / 4, carBaseY, 0);
+            computerCar.position.set(roadWidth / 4, carBaseY, 0);
+        }
+        
+        moveLeft = moveRight = false;
+    }
+
+    function startRound(){ gameState = 'countdown'; resetCarPositions(); updateScoreBoard(); countdownEl.style.display = 'grid'; const showAndAnimate = (text) => { countdownEl.textContent = text; countdownEl.classList.remove('pop-in'); void countdownEl.offsetWidth; countdownEl.classList.add('pop-in'); }; setTimeout(() => showAndAnimate('3'), 500); setTimeout(() => showAndAnimate('2'), 1500); setTimeout(() => showAndAnimate('1'), 2500); setTimeout(() => showAndAnimate('GO!'), 3500); setTimeout(() => { countdownEl.style.display = 'none'; gameState = 'racing'; }, 4200); }
+    
+    function declareWinner(winnerId) {
+        if (gameState !== 'racing' || !raceIdRef) return;
+        gameState = 'roundOver';
+        set(ref(db, `races/${raceIdRef.key}/winner`), winnerId);
+    }
+    
+    function endGame(winnerId){
+        if (gameState === 'gameOver') return;
+        gameState = 'gameOver';
+
+        if (raceStateListener && raceIdRef) off(raceIdRef, 'value', raceStateListener);
+        if (opponentPosListener) {
+            const opponentId = currentOpponent?.uid || currentOpponent?.challengerId;
+            if(raceIdRef && opponentId) off(ref(db, `races/${raceIdRef.key}/players/${opponentId}`), 'value', opponentPosListener);
+        }
+
+        let winnerName;
+        if (gameMode === 'human') {
+            winnerName = (winnerId === auth.currentUser.uid) ? 'You Won!' : 'Opponent Won';
+        } else {
+            winnerName = `${winnerId} Won!`;
+        }
+        
+        gameOverTitleEl.textContent = "RACE FINISHED";
+        winnerEl.textContent = winnerName;
+        finalScoreEl.textContent = ``;
+        showScreen(gameOverEl);
+
+        setTimeout(() => {
+            if (raceIdRef) remove(raceIdRef);
+            raceIdRef = null;
+        }, 3000);
+    }
+
+    function animate(time){
+        requestAnimationFrame(animate);
+        const delta = time * 0.001;
+        
+        const cameraCar = (gameMode === 'human' && myCar) ? myCar : playerCar;
+        if(cameraCar && carBaseY >= 0){ const targetCameraX = cameraCar.position.x * 0.5; const targetCameraZ = cameraCar.position.z - 8; camera.position.x += (targetCameraX - camera.position.x) * 0.1; camera.position.z += (targetCameraZ - camera.position.z) * 0.1; camera.position.y += ((carBaseY+4) - camera.position.y) * 0.05; if (cameraShake.active) { const e = time - cameraShake.startTime; if (e < cameraShake.duration) { const s = cameraShake.intensity * (1 - (e / cameraShake.duration)); camera.position.x += (Math.random() - 0.5) * s; camera.position.y += (Math.random() - 0.5) * s; } else { cameraShake.active = false; } } camera.lookAt(cameraCar.position.x, carBaseY+1, cameraCar.position.z+5); }
+        
+        updateParticles(delta);
+
+        if(gameState !== 'racing'){ renderer.render(scene, camera); return; }
+        const now = performance.now();
+
+        const updateCar = (car, isPlayer) => {
+            let speed = isPlayer ? playerSpeed : computerSpeed;
+            const inWater = isPositionInWater(car.position.x, car.position.z);
+            if (inWater) {
+                speed *= waterSpeedModifier;
+                if (Math.random() < 0.25) {
+                    triggerWaterSplash(car.position);
+                }
+            }
+            car.position.z += speed;
+
+            if (isPlayer) {
+                const max = getMaxBoundsFor(car);
+                if (moveLeft && car.position.x > -max) car.position.x -= carMoveSpeed;
+                if (moveRight && car.position.x < max) car.position.x += carMoveSpeed;
+            } else {
+                 const maxC = getMaxBoundsFor(car); 
+                 const feelerZ = car.position.z + aiLookAheadDistance; 
+                 if (isPositionInWater(car.position.x, feelerZ) || Math.random() < 0.01) { 
+                    aiDesiredX = (Math.random() * 2 - 1) * (roadWidth / 2 - kerbWidth - 1.5); 
+                 } 
+                 car.position.x = THREE.MathUtils.damp(car.position.x, aiDesiredX, aiSteerSpeed, 0.1);
+            }
+        };
+
+        if (gameMode === 'human' && myCar && opponentCar) {
+            updateCar(myCar, true);
+
+            if (now - lastDbWriteTime > dbWriteInterval && raceIdRef) { const uid = auth.currentUser.uid; set(ref(db, `races/${raceIdRef.key}/players/${uid}`), { x: myCar.position.x, z: myCar.position.z }); lastDbWriteTime = now; }
+            
+            opponentCar.position.lerp(opponentTargetPos, 0.5); 
+            
+            if(isPositionInWater(opponentCar.position.x, opponentCar.position.z) && Math.random() < 0.25) {
+                triggerWaterSplash(opponentCar.position);
+            }
+
+            playerMarker.style.left = `${Math.min(100, (myCar.position.z / raceDistance) * 100)}%`;
+            opponentMarker.style.left = `${Math.min(100, (opponentCar.position.z / raceDistance) * 100)}%`;
+            if(myCar.position.z >= raceDistance) declareWinner(auth.currentUser.uid);
+        } else if (gameMode === 'computer' && playerCar && computerCar) {
+            updateCar(playerCar, true);
+            updateCar(computerCar, false);
+
+            playerMarker.style.left = `${Math.min(100, (playerCar.position.z / raceDistance) * 100)}%`;
+            opponentMarker.style.left = `${Math.min(100, (computerCar.position.z / raceDistance) * 100)}%`;
+            if (playerCar.position.z >= raceDistance) endGame('Player'); else if (computerCar.position.z >= raceDistance) endGame('Computer');
+        }
+        renderer.render(scene, camera);
+    }
+    
+    function restart(){ 
+        showScreen(null); 
+        hud.classList.remove('visible'); 
+        controls.classList.remove('visible'); 
+        isColliding = false; 
+        collisionTimeout = 0; 
+        currentRound = 1; 
+        amITheChallenger = false;
+        handleAuthState(); 
+    }
+    
+    function generateWaterPuddles(isRestart = false, returnDataOnly = false) {
+        if (isRestart) {
+            const toRemove = scene.children.filter(c => c.userData.isWaterPuddle);
+            toRemove.forEach(o => { 
+                o.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+                scene.remove(o); 
+            });
+        }
+        waterPuddles = [];
+        const puddlesData = [];
+        const num = 40; // More, but smaller puddles
+        for (let i = 0; i < num; i++) {
+            const w = THREE.MathUtils.randFloat(1.5, 4);   // Smaller width
+            const d = THREE.MathUtils.randFloat(2, 7);     // Smaller depth/length
+            const z = THREE.MathUtils.randFloat(raceDistance * 0.1, raceDistance * 0.95);
+            const x = THREE.MathUtils.randFloat(-(roadWidth - w) / 2, (roadWidth - w) / 2);
+            puddlesData.push({x, z, w, d});
+            if (!returnDataOnly) createWaterPuddle(x, z, w, d);
+        }
+        if (returnDataOnly) return puddlesData;
+    }
+    
+    function generateWaterPuddlesFromData(data) {
+        const toRemove = scene.children.filter(c => c.userData.isWaterPuddle);
+        toRemove.forEach(o => { 
+            o.children.forEach(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+            scene.remove(o); 
+        });
+        waterPuddles = [];
+        data.forEach(p => createWaterPuddle(p.x, p.z, p.w, p.d));
+    }
+
+    function createPuddleShape(width, height) {
+        const shape = new THREE.Shape();
+        const numPoints = 10;
+        const points = [];
+
+        for (let i = 0; i < numPoints; i++) {
+            const angle = (i / numPoints) * Math.PI * 2;
+            const radius = (Math.random() * 0.4 + 0.8);
+            const x = Math.cos(angle) * (width / 2) * radius;
+            const y = Math.sin(angle) * (height / 2) * radius;
+            points.push(new THREE.Vector2(x, y));
+        }
+
+        shape.moveTo(points[0].x, points[0].y);
+        for (let i = 0; i < numPoints; i++) {
+            const p1 = points[i];
+            const p2 = points[(i + 1) % numPoints];
+            const midPoint = new THREE.Vector2().addVectors(p1, p2).multiplyScalar(0.5);
+            shape.quadraticCurveTo(p1.x, p1.y, midPoint.x, midPoint.y);
+        }
+        const midPointLast = new THREE.Vector2().addVectors(points[numPoints - 1], points[0]).multiplyScalar(0.5);
+        shape.quadraticCurveTo(points[numPoints - 1].x, points[numPoints - 1].y, midPointLast.x, midPointLast.y);
+        shape.quadraticCurveTo(midPointLast.x, midPointLast.y, points[0].x, points[0].y);
+
+        return shape;
+    }
+
+    function createWaterPuddle(x, z, w, d) {
+        const puddleGroup = new THREE.Group();
+        
+        const puddleShape = createPuddleShape(w, d);
+        const puddleGeometry = new THREE.ShapeGeometry(puddleShape);
+
+        const damageMat = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide, roughness: 0.8 });
+        const damageMesh = new THREE.Mesh(puddleGeometry, damageMat);
+        damageMesh.receiveShadow = true;
+        damageMesh.renderOrder = 0; // Render this first
+        puddleGroup.add(damageMesh);
+
+        const waterMat = new THREE.MeshStandardMaterial({ 
+            color: 0x2196F3, 
+            opacity: 0.65,
+            transparent: true,
+            roughness: 0.2,
+            metalness: 0.1
+        });
+        const waterMesh = new THREE.Mesh(puddleGeometry, waterMat);
+        waterMesh.position.y = 0.02; // Increased separation to prevent Z-fighting
+        waterMesh.renderOrder = 1; // Render this second, on top
+        puddleGroup.add(waterMesh);
+        
+        puddleGroup.rotation.x = -Math.PI / 2;
+        puddleGroup.position.set(x, 0.02, z); // Lift group to avoid road lines
+        puddleGroup.userData.isWaterPuddle = true;
+        scene.add(puddleGroup);
+        
+        // Use a rectangular bounding box for efficient collision detection
+        waterPuddles.push({ 
+            xMin: x - w / 2, xMax: x + w / 2, 
+            zMin: z - d / 2, zMax: z + d / 2,
+            mesh: puddleGroup
+        });
+    }
+
+    // --- PARTICLE SYSTEM FUNCTIONS ---
+    function initParticleSystem() {
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(maxParticles * 3);
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const material = new THREE.PointsMaterial({
+            color: 0x88ccff,
+            size: 0.3,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            sizeAttenuation: true,
+        });
+
+        particleSystem = new THREE.Points(geometry, material);
+        particleSystem.visible = false;
+        scene.add(particleSystem);
+
+        for (let i = 0; i < maxParticles; i++) {
+            particlePool.push({
+                active: false,
+                position: new THREE.Vector3(),
+                velocity: new THREE.Vector3(),
+                lifetime: 0,
+                lifespan: 0,
+            });
+        }
+    }
+
+    function triggerWaterSplash(position) {
+        if (!particleSystem) return;
+        particleSystem.visible = true;
+        const count = 10;
+        for (let i = 0; i < count; i++) {
+            let p = getAvailableParticle();
+            if (p) {
+                p.active = true;
+                p.position.copy(position);
+                p.position.y = 0.1;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 2 + 1;
+                p.velocity.set(
+                    Math.cos(angle) * speed,
+                    Math.random() * 3 + 2,
+                    Math.sin(angle) * speed
+                );
+                p.lifetime = 0;
+                p.lifespan = Math.random() * 0.5 + 0.3;
+            }
+        }
+    }
+
+    function getAvailableParticle() {
+        for (let i = 0; i < maxParticles; i++) {
+            if (!particlePool[i].active) {
+                return particlePool[i];
+            }
+        }
+        return null;
+    }
+
+    function updateParticles(delta) {
+        if (!particleSystem) return;
+        
+        const positions = particleSystem.geometry.attributes.position.array;
+        let activeCount = 0;
+
+        for (let i = 0; i < maxParticles; i++) {
+            let p = particlePool[i];
+            if (p.active) {
+                p.lifetime += delta;
+                if (p.lifetime > p.lifespan) {
+                    p.active = false;
+                    continue;
+                }
+
+                p.velocity.y -= 9.8 * delta;
+                p.position.addScaledVector(p.velocity, delta);
+
+                if (p.position.y < 0.1) {
+                    p.active = false;
+                    continue;
+                }
+                
+                positions[activeCount * 3] = p.position.x;
+                positions[activeCount * 3 + 1] = p.position.y;
+                positions[activeCount * 3 + 2] = p.position.z;
+                activeCount++;
+            }
+        }
+        
+        if (activeCount > 0) {
+            particleSystem.geometry.setDrawRange(0, activeCount);
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+            particleSystem.visible = true;
+        } else {
+            particleSystem.visible = false;
+        }
+    }
+
+
+    function createBuilding(){ const h=Math.random()*30+10, w=Math.random()*8+4, d=Math.random()*8+4; const geo=new THREE.BoxGeometry(w,h,d); const mat=new THREE.MeshStandardMaterial({color:new THREE.Color(Math.random()*0.8+0.1,Math.random()*0.8+0.1,Math.random()*0.8+0.1),roughness:.8,metalness:.1}); const m=new THREE.Mesh(geo,mat); m.position.y=h/2; m.castShadow=m.receiveShadow=true; return m; }
+    function createStreetLight(){ const g=new THREE.Group(); const pH=6,r=.1; const p=new THREE.Mesh(new THREE.CylinderGeometry(r,r,pH),new THREE.MeshStandardMaterial({color:0x888888,metalness:.8,roughness:.4})); p.position.y=pH/2; p.castShadow=true; g.add(p); const aL=1; const a=new THREE.Mesh(new THREE.BoxGeometry(aL,r*1.5,r*1.5),p.material); a.position.set(0,pH-r*2,0); g.add(a); const f=new THREE.Mesh(new THREE.SphereGeometry(r*2,16,8),new THREE.MeshStandardMaterial({color:0xffffaa,emissive:0xffff00,emissiveIntensity:.5})); f.position.set(0,pH-r*2,0); g.add(f); g.userData.armLength = aL; return g; }
+
+  </script>
+</body>
+</html>
